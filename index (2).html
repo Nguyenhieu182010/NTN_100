@@ -1,0 +1,2166 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nguyễn Tâm Như</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: #fdf5f6;
+            font-family: 'Times New Roman', serif;
+            text-align: center;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* ───────── SHARED ───────── */
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100%;
+            position: absolute;
+            top: 0; left: 0;
+            padding: 20px;
+        }
+        .screen.active { display: flex; }
+
+        h1 {
+            color: #d93838;
+            font-size: clamp(1.6rem, 4vw, 3rem);
+            margin-bottom: 20px;
+            line-height: 1.3;
+        }
+        h2 {
+            color: #d93838;
+            font-size: clamp(1rem, 2.5vw, 1.5rem);
+            margin-bottom: 26px;
+            letter-spacing: 2px;
+        }
+
+        /* ───────── SCREEN 1 – YES/NO ───────── */
+        .buttons-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            position: relative;
+            min-height: 60px;
+        }
+        button {
+            padding: 10px 30px;
+            font-size: 1.5rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Times New Roman', serif;
+            transition: all 0.3s ease;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+        }
+        #yesBtn { background-color: #3ba55c; color: white; }
+        #noBtn  { background-color: #ec4c4c; color: white; }
+
+        /* ───────── SCREEN 2 – CHARACTER DIALOGUE ───────── */
+        #dialogue-screen {
+            justify-content: flex-end;
+            padding-bottom: 0;
+            background: linear-gradient(180deg, #080820 0%, #0d1640 55%, #1a1050 100%);
+            position: relative;
+            overflow: hidden;
+            transition: background 1.2s ease;
+        }
+
+        /* Star canvas behind everything */
+        #star-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Shooting star canvas */
+        #shoot-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Character glowing aura */
+        .character-wrap {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            z-index: 3;
+            pointer-events: none;
+            filter: drop-shadow(0 0 22px rgba(180, 140, 255, 0.55))
+                    drop-shadow(0 0 55px rgba(130, 180, 255, 0.35));
+            animation: charGlow 3s ease-in-out infinite alternate;
+        }
+        @keyframes charGlow {
+            from { filter: drop-shadow(0 0 18px rgba(180,140,255,0.45)) drop-shadow(0 0 45px rgba(130,180,255,0.28)); }
+            to   { filter: drop-shadow(0 0 32px rgba(200,160,255,0.75)) drop-shadow(0 0 70px rgba(150,200,255,0.50)); }
+        }
+
+        /* Character pinned bottom-right (defined above with glow) */
+        .character-img {
+            width: min(400px, 166vw);
+            object-fit: contain;
+            display: block;
+            transition: opacity 0.35s ease, transform 0.35s ease;
+        }
+        .character-img.switching {
+            opacity: 0;
+            transform: translateY(10px) scale(0.96);
+        }
+
+        @keyframes charAppear {
+            from { opacity: 0; transform: translateY(60px) scale(0.85); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Manga speech bubble — sát nhân vật bên phải */
+        .speech-bubble-wrap {
+            position: absolute;
+            top: 50%;
+            right: calc(min(280px, 55vw) + 8px);
+            transform: translateY(-50%);
+            max-width: 52vw;
+            z-index: 10;
+            cursor: pointer;
+        }
+
+        .speech-bubble {
+            background: rgba(12, 8, 40, 0.82);
+            border: 2px solid rgba(180, 150, 255, 0.6);
+            border-radius: 18px;
+            padding: 18px 22px;
+            position: relative;
+            box-shadow: 4px 4px 0px rgba(100,80,200,0.5), 0 0 20px rgba(160,130,255,0.2);
+            backdrop-filter: blur(6px);
+        }
+
+        /* Tail pointing right toward character */
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            right: -22px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-width: 12px 0 12px 22px;
+            border-style: solid;
+            border-color: transparent transparent transparent rgba(180,150,255,0.6);
+        }
+        .speech-bubble::before {
+            content: '';
+            position: absolute;
+            right: -18px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-width: 10px 0 10px 20px;
+            border-style: solid;
+            border-color: transparent transparent transparent rgba(12,8,40,0.85);
+            z-index: 1;
+        }
+
+        .dialogue-text {
+            font-size: clamp(0.95rem, 2.4vw, 1.15rem);
+            color: #e8e0ff;
+            line-height: 1.65;
+            text-align: left;
+            font-family: 'Times New Roman', serif;
+            animation: fadeText 0.3s ease;
+            text-shadow: 0 0 8px rgba(200,180,255,0.3);
+        }
+
+        @keyframes fadeText {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .dialogue-hint {
+            font-size: 0.72rem;
+            color: #a090d0;
+            font-style: italic;
+            text-align: right;
+            margin-top: 8px;
+            animation: blinkHint 1.5s infinite;
+        }
+        @keyframes blinkHint {
+            0%,100% { opacity: 1; }
+            50%      { opacity: 0.3; }
+        }
+
+        /* Dot progress kept but hidden (removed) */
+        .dialogue-progress { display: none; }
+        .prog-dot { display: none; }
+
+
+
+        /* ───────── SCREEN 3 – GIFT BOX ───────── */
+        #success-screen {
+            background: radial-gradient(ellipse at center, #1a0830 0%, #0a0518 50%, #060310 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Slow-mo petals only visible on gift screen */
+        .petal-slow {
+            position: fixed;
+            top: -30px;
+            font-size: 1.2rem;
+            animation: fall-slow linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        @keyframes fall-slow {
+            to { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+        }
+
+        /* Gift wrap container */
+        .gift-zone {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+        }
+
+        /* Heart progress ring around gift */
+        #heart-progress-wrap {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 6px;
+        }
+        #heart-progress-svg {
+            position: absolute;
+            inset: -18px;
+            width: calc(100% + 36px);
+            height: calc(100% + 36px);
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        .gift-wrapper {
+            cursor: pointer;
+            display: inline-block;
+            user-select: none;
+            -webkit-user-select: none;
+            position: relative;
+        }
+        .gift-wrapper img {
+            width: min(280px, 78vw);
+            border-radius: 12px;
+            filter: drop-shadow(0 6px 28px rgba(200,80,180,0.3));
+            transition: filter 0.2s;
+            display: block;
+        }
+
+        /* Light leaking from gift box edges */
+        .gift-glow {
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            pointer-events: none;
+            opacity: 0;
+            box-shadow:
+                0 0 0px 0px rgba(255,200,100,0),
+                inset 0 0 0px rgba(255,200,100,0);
+            transition: opacity 0.1s;
+        }
+
+        /* Shake animation */
+        @keyframes gift-shake {
+            0%,100% { transform: rotate(0deg) scale(1); }
+            20%  { transform: rotate(-3deg) scale(1.02); }
+            40%  { transform: rotate(3deg)  scale(1.03); }
+            60%  { transform: rotate(-2deg) scale(1.02); }
+            80%  { transform: rotate(2deg)  scale(1.03); }
+        }
+        .gift-wrapper.shaking { animation: gift-shake 0.35s ease infinite; }
+
+        /* Burst open animation */
+        @keyframes gift-burst {
+            0%   { transform: scale(1) rotate(0deg); opacity: 1; }
+            40%  { transform: scale(1.35) rotate(-8deg); opacity: 0.9; }
+            70%  { transform: scale(1.6) rotate(10deg); opacity: 0.5; }
+            100% { transform: scale(2.2) rotate(-5deg); opacity: 0; }
+        }
+        .gift-wrapper.bursting { animation: gift-burst 0.55s cubic-bezier(0.36,0.07,0.19,0.97) forwards !important; }
+
+        .hint-text {
+            margin-top: 14px;
+            font-size: 0.9rem;
+            color: #d090e0;
+            font-style: italic;
+            animation: pulse 1.8s infinite;
+            z-index: 2;
+        }
+        @keyframes pulse {
+            0%,100% { opacity:1; }
+            50%      { opacity:0.4; }
+        }
+
+        /* 100-day label during press */
+        #press-label {
+            font-size: 0.78rem;
+            color: #c0a0d0;
+            letter-spacing: 2px;
+            font-style: italic;
+            margin-top: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* ───────── SCREEN 4 – CAKE ───────── */
+        #cake-screen { overflow: hidden; position: relative; }
+
+        #envelope-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .cake-img {
+            width: min(420px, 60vw);
+            border-radius: 16px;
+            filter: drop-shadow(0 8px 18px rgba(0,0,0,0.15));
+            animation: floatUp 0.6s ease;
+            position: relative;
+            z-index: 10;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .cake-img:hover {
+            filter: drop-shadow(0 8px 24px rgba(220,80,120,0.45));
+            transform: scale(1.03);
+            transition: transform 0.25s ease, filter 0.25s ease;
+        }
+        @keyframes floatUp {
+            from { opacity:0; transform: translateY(30px); }
+            to   { opacity:1; transform: translateY(0); }
+        }
+
+        /* ── Falling envelopes ── */
+        .falling-envelope {
+            position: absolute;
+            cursor: pointer;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            pointer-events: auto;
+            transition: filter 0.2s;
+        }
+        .falling-envelope:hover { filter: brightness(1.2) drop-shadow(0 0 6px #e87c9080); }
+        .falling-envelope .env-icon {
+            font-size: 2.2rem;
+            filter: drop-shadow(0 3px 6px rgba(180,80,100,0.35));
+        }
+        .falling-envelope .env-label {
+            font-size: 0.65rem;
+            color: #c0566a;
+            background: rgba(255,245,248,0.9);
+            border-radius: 20px;
+            padding: 2px 8px;
+            white-space: nowrap;
+            font-style: italic;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+
+        /* ───────── SCREEN 5 – LETTER ───────── */
+        #letter-screen {
+            background: transparent;
+            justify-content: center;
+        }
+        .letter-frame {
+            background: #fffaf8;
+            border: 1px solid #e8cfd4;
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(180,80,100,0.15);
+            max-width: 540px;
+            width: 92vw;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 36px 32px 28px;
+            position: relative;
+            text-align: left;
+            animation: floatUp 0.5s ease;
+        }
+        .letter-frame::before {
+            content: '❤️';
+            position: absolute;
+            top: -18px; left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+        }
+        .letter-title {
+            font-size: 1.05rem;
+            font-weight: bold;
+            color: #d93838;
+            margin-bottom: 6px;
+        }
+        .letter-date {
+            font-size: 0.8rem;
+            color: #b08090;
+            margin-bottom: 18px;
+        }
+        .letter-body {
+            font-size: 1.05rem;
+            line-height: 1.85;
+            color: #4a2030;
+        }
+        .letter-body p {
+            text-indent: 2em;
+            margin-bottom: 0.6em;
+        }
+        .letter-sign {
+            margin-top: 24px;
+            font-size: 1rem;
+            color: #c0566a;
+            font-style: italic;
+            text-align: right;
+        }
+        .back-btn {
+            margin-top: 22px;
+            background: #e87c90;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 10px 28px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-family: 'Times New Roman', serif;
+            transition: background 0.2s;
+        }
+        .back-btn:hover { background: #d93838; }
+
+        /* ───────── SECRET ENVELOPE MODAL ───────── */
+        #secret-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(180,60,80,0.35);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        #secret-overlay.show { display: flex; }
+        .secret-envelope-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        @keyframes popIn {
+            from { opacity:0; transform: scale(0.5) rotate(-8deg); }
+            to   { opacity:1; transform: scale(1) rotate(0deg); }
+        }
+        .secret-envelope-icon {
+            font-size: 5rem;
+            filter: drop-shadow(0 6px 16px rgba(200,60,100,0.5));
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .secret-envelope-icon:hover { transform: scale(1.1) rotate(3deg); }
+        .secret-label {
+            font-size: 1rem;
+            color: #fff;
+            background: rgba(200,60,90,0.75);
+            border-radius: 50px;
+            padding: 6px 20px;
+            font-style: italic;
+            letter-spacing: 1px;
+        }
+        .secret-hint { font-size:0.82rem; color:#ffe0e8; font-style:italic; animation:pulse 1.6s infinite; }
+        .close-overlay-btn {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.6);
+            color: white;
+            border-radius: 50px;
+            padding: 6px 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            font-family: 'Times New Roman', serif;
+        }
+        .close-overlay-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* ───────── SCREEN 0 – TIMELINE PORTAL ───────── */
+        #portal-screen {
+            background: #000;
+            flex-direction: column;
+            gap: 0;
+            z-index: 200;
+            position: fixed;
+        }
+
+        #portal-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .portal-content {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+        }
+
+        .typewriter-wrap {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.9rem, 2.5vw, 1.15rem);
+            color: #00ffe0;
+            text-shadow: 0 0 8px #00ffe0, 0 0 20px #00bfff;
+            letter-spacing: 2px;
+            min-height: 1.6em;
+            text-align: center;
+        }
+
+        #typewriter-text::after {
+            content: '|';
+            animation: blink-cursor 0.7s infinite;
+        }
+        @keyframes blink-cursor {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .counter-wrap {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #day-counter {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(4rem, 16vw, 8rem);
+            font-weight: 900;
+            color: #fff;
+            text-shadow:
+                0 0 10px #ff69b4,
+                0 0 30px #ff69b4,
+                0 0 60px #ff1493,
+                0 0 100px #ff1493;
+            line-height: 1;
+            letter-spacing: -4px;
+            transition: color 0.1s;
+        }
+
+        .counter-label {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(0.65rem, 1.8vw, 0.85rem);
+            color: #ff69b4aa;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+        }
+
+        /* fade-out overlay for portal exit */
+        #portal-fadeout {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 300;
+            transition: opacity 0.8s ease;
+        }
+        #portal-fadeout.fade { opacity: 1; pointer-events: all; }
+
+        /* scrollbar styling */
+        .letter-frame::-webkit-scrollbar { width: 5px; }
+        .letter-frame::-webkit-scrollbar-track { background: #fdf5f6; }
+        .letter-frame::-webkit-scrollbar-thumb { background: #e8b0bc; border-radius: 10px; }
+
+        /* floating petals */
+        .petal {
+            position: fixed;
+            top: -30px;
+            font-size: 1.2rem;
+            animation: fall linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        @keyframes fall {
+            to { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+        }
+
+        /* ───────── SCREEN 6 – CONSTELLATION MAP ───────── */
+        #constellation-screen {
+            background: radial-gradient(ellipse at 50% 40%, #0a0525 0%, #04010f 70%, #000 100%);
+            position: relative;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        #constellation-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #constellation-hint {
+            position: absolute;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(0.75rem, 2vw, 0.9rem);
+            color: #a89ccc;
+            font-style: italic;
+            letter-spacing: 1px;
+            pointer-events: none;
+            text-align: center;
+            animation: blinkHint 2s infinite;
+            white-space: nowrap;
+        }
+
+        #constellation-title {
+            position: absolute;
+            top: 22px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(0.8rem, 2.2vw, 1rem);
+            color: #c8b8f0;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        #constellation-complete-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1.2s ease;
+            z-index: 10;
+        }
+        #constellation-complete-msg h2 {
+            color: #f0d0ff;
+            font-size: clamp(1.2rem, 3.5vw, 1.8rem);
+            text-shadow: 0 0 20px #c084fc, 0 0 40px #a855f7;
+            margin-bottom: 10px;
+        }
+        #constellation-complete-msg p {
+            color: #c8b8e0;
+            font-size: clamp(0.8rem, 2vw, 0.95rem);
+            font-style: italic;
+        }
+        .const-open-btn {
+            margin-top: 22px;
+            background: linear-gradient(135deg, #a855f7, #ec4899);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 32px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-family: 'Times New Roman', serif;
+            box-shadow: 0 0 20px rgba(168,85,247,0.5);
+            pointer-events: all;
+            letter-spacing: 1px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .const-open-btn:hover {
+            transform: scale(1.06);
+            box-shadow: 0 0 30px rgba(168,85,247,0.8);
+        }
+
+        /* ───────── PASSWORD MODAL ───────── */
+        #pw-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(80, 20, 40, 0.55);
+            backdrop-filter: blur(6px);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+        }
+        #pw-modal.show { display: flex; }
+
+        .pw-box {
+            background: linear-gradient(145deg, #fff8fa, #ffeef3);
+            border: 2px solid #f0b8c8;
+            border-radius: 24px;
+            padding: 36px 32px 28px;
+            width: min(340px, 88vw);
+            box-shadow: 0 16px 50px rgba(200, 60, 100, 0.25);
+            text-align: center;
+            animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+        }
+        .pw-lock-icon { font-size: 2.8rem; margin-bottom: 10px; display: block; }
+        .pw-title { font-size: 1rem; font-weight: bold; color: #c0405a; margin-bottom: 4px; letter-spacing: 1px; }
+        .pw-subtitle { font-size: 0.8rem; color: #b08090; font-style: italic; margin-bottom: 20px; }
+
+        .pw-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 22px; }
+        .pw-dot {
+            width: 14px; height: 14px; border-radius: 50%;
+            border: 2px solid #e8a0b4; background: transparent;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .pw-dot.filled { background: #e87c90; border-color: #d93838; transform: scale(1.15); }
+        .pw-dot.error  { background: #ff4444; border-color: #cc0000; animation: shake-dot 0.4s ease; }
+        @keyframes shake-dot {
+            0%,100% { transform: translateX(0); }
+            20% { transform: translateX(-5px); }
+            40% { transform: translateX(5px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+
+        .pw-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+        .pw-key {
+            background: #fff; border: 1.5px solid #f0c0cc; border-radius: 14px;
+            padding: 14px 0; font-size: 1.3rem; font-weight: bold; color: #c0405a;
+            cursor: pointer; font-family: 'Times New Roman', serif;
+            transition: background 0.15s, transform 0.1s;
+            box-shadow: 0 2px 6px rgba(200,80,100,0.1); user-select: none;
+        }
+        .pw-key:active, .pw-key:hover { background: #ffe0e8; transform: scale(0.95); }
+        .pw-key.zero { grid-column: 2; }
+        .pw-delete-btn {
+            background: transparent; border: 1.5px solid #f0c0cc; border-radius: 14px;
+            padding: 10px 0; font-size: 1.1rem; color: #b08090; cursor: pointer;
+            font-family: 'Times New Roman', serif; width: 100%;
+            transition: background 0.15s; margin-bottom: 8px;
+        }
+        .pw-delete-btn:hover { background: #ffe8ee; }
+        .pw-error-msg { font-size: 0.78rem; color: #e04060; font-style: italic; min-height: 1.1em; margin-bottom: 8px; }
+        .pw-cancel-btn {
+            background: transparent; border: none; color: #b08090; font-size: 0.82rem;
+            cursor: pointer; font-family: 'Times New Roman', serif;
+            text-decoration: underline; padding: 4px;
+        }
+        .pw-cancel-btn:hover { color: #c0405a; }
+
+        /* ───────── CONFETTI ───────── */
+        #confetti-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 999;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div id="portal-fadeout"></div>
+
+<!-- ────── PASSWORD MODAL ────── -->
+<div id="pw-modal">
+    <div class="pw-box">
+        <span class="pw-lock-icon">🔐</span>
+        <div class="pw-title">Thư Số 5 — Riêng Tư</div>
+        <div class="pw-subtitle">Nhập mật khẩu để mở phong thư này 🌷</div>
+        <div class="pw-dots">
+            <div class="pw-dot" id="pd0"></div>
+            <div class="pw-dot" id="pd1"></div>
+            <div class="pw-dot" id="pd2"></div>
+            <div class="pw-dot" id="pd3"></div>
+            <div class="pw-dot" id="pd4"></div>
+            <div class="pw-dot" id="pd5"></div>
+        </div>
+        <div class="pw-keypad">
+            <button class="pw-key" data-d="1">1</button>
+            <button class="pw-key" data-d="2">2</button>
+            <button class="pw-key" data-d="3">3</button>
+            <button class="pw-key" data-d="4">4</button>
+            <button class="pw-key" data-d="5">5</button>
+            <button class="pw-key" data-d="6">6</button>
+            <button class="pw-key" data-d="7">7</button>
+            <button class="pw-key" data-d="8">8</button>
+            <button class="pw-key" data-d="9">9</button>
+            <button class="pw-key zero" data-d="0">0</button>
+        </div>
+        <button class="pw-delete-btn" id="pwDeleteBtn">⌫ Xoá</button>
+        <div class="pw-error-msg" id="pwErrorMsg"></div>
+        <button class="pw-cancel-btn" id="pwCancelBtn">Đóng lại</button>
+    </div>
+</div>
+
+<!-- ────── SCREEN 0: Timeline Portal Intro ────── -->
+<div id="portal-screen" class="screen">
+    <canvas id="portal-canvas"></canvas>
+    <div class="portal-content">
+        <div class="typewriter-wrap">
+            <span id="typewriter-text"></span>
+        </div>
+        <div class="counter-wrap" id="counterWrap">
+            <div id="day-counter">0</div>
+            <div class="counter-label">ngày ký ức</div>
+        </div>
+    </div>
+</div>
+
+<canvas id="confetti-canvas"></canvas>
+
+<!-- ────── SCREEN 1: Yes/No ────── -->
+<div id="question-screen" class="screen active">
+    <h1>Chị có biết nay là ngày gì không?</h1>
+    <div class="buttons-container">
+        <button id="yesBtn">YES</button>
+        <button id="noBtn">NO</button>
+    </div>
+</div>
+
+<!-- ────── SCREEN 2: Character + Dialogue ────── -->
+<div id="dialogue-screen" class="screen">
+    <canvas id="star-canvas"></canvas>
+    <canvas id="shoot-canvas"></canvas>
+    <!-- Manga speech bubble (click anywhere on screen to advance) -->
+    <div class="speech-bubble-wrap" id="dialogueBox">
+        <div class="speech-bubble">
+            <div class="dialogue-text" id="dialogueText"></div>
+        </div>
+        <div class="dialogue-hint">Nhấn để tiếp tục ▶</div>
+    </div>
+    <!-- Character pinned bottom-right -->
+    <div class="character-wrap">
+        <img class="character-img" id="characterImg" src="cay.png" alt="Nhân vật" />
+    </div>
+    <!-- Hidden progress dots (kept for JS compat) -->
+    <div class="dialogue-progress" id="dialogueProgress" style="display:none"></div>
+</div>
+
+<!-- ────── SCREEN 3: Gift box ────── -->
+<div id="success-screen" class="screen">
+    <div class="gift-zone">
+        <div id="heart-progress-wrap">
+            <!-- SVG heart progress ring -->
+            <svg id="heart-progress-svg" viewBox="-10 -10 120 120" xmlns="http://www.w3.org/2000/svg">
+                <!-- track -->
+                <path id="heart-track"
+                    d="M50 85 C20 65, 0 50, 0 30 A25 25 0 0 1 50 18 A25 25 0 0 1 100 30 C100 50, 80 65, 50 85Z"
+                    fill="none" stroke="rgba(180,80,180,0.2)" stroke-width="5" stroke-linecap="round"/>
+                <!-- fill -->
+                <path id="heart-fill"
+                    d="M50 85 C20 65, 0 50, 0 30 A25 25 0 0 1 50 18 A25 25 0 0 1 100 30 C100 50, 80 65, 50 85Z"
+                    fill="none" stroke="url(#heartGrad)" stroke-width="5" stroke-linecap="round"
+                    stroke-dasharray="0 1000"/>
+                <defs>
+                    <linearGradient id="heartGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%"   stop-color="#ff69b4"/>
+                        <stop offset="50%"  stop-color="#c084fc"/>
+                        <stop offset="100%" stop-color="#38bdf8"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div class="gift-wrapper" id="giftBox">
+                <img src="qua.jpg" alt="Hộp quà" />
+                <div class="gift-glow" id="giftGlow"></div>
+            </div>
+        </div>
+        <div id="press-label">Nhấn giữ để mở... 💫</div>
+    </div>
+    <p class="hint-text" id="giftHint">💜 Nhấn và giữ hộp quà 💜</p>
+</div>
+
+<!-- ────── SCREEN 4: Cake + Falling Letters ────── -->
+<div id="cake-screen" class="screen">
+    <div id="envelope-layer"></div>
+    <img class="cake-img" src="banh.jpg" alt="Bánh kem" />
+</div>
+
+<!-- ────── SCREEN 6: Constellation Map ────── -->
+<div id="constellation-screen" class="screen">
+    <canvas id="constellation-canvas"></canvas>
+    <div id="constellation-title">✦ Chòm Sao Sử Nữ ✦</div>
+    <div id="constellation-hint">✦ Chạm vào các ngôi sao theo thứ tự để nối chòm sao Sử Nữ ✦</div>
+    <div id="constellation-complete-msg">
+        <h2>✨ Chòm Sao Sử Nữ ✨</h2>
+        <p>Cả vũ trụ đang chứng kiến tình cảm của chúng mình 🌌</p>
+        <button class="const-open-btn" id="openSecretLetterBtn">💌 Mở Phong Thư Bí Mật</button>
+    </div>
+</div>
+
+<!-- ────── SECRET ENVELOPE OVERLAY ────── -->
+<div id="secret-overlay">
+    <div class="secret-envelope-wrap">
+        <div class="secret-envelope-icon" id="secretEnvelopeIcon">💌</div>
+        <div class="secret-label">✨ Phong thư bí mật ✨</div>
+        <div class="secret-hint">Nhấn vào phong thư để mở...</div>
+        <button class="close-overlay-btn" id="closeOverlayBtn">✕ Đóng lại</button>
+    </div>
+</div>
+
+<!-- ────── SCREEN 5: Letter ────── -->
+<div id="letter-screen" class="screen">
+    <div class="letter-frame">
+        <p class="letter-title" id="letterTitle"></p>
+        <p class="letter-date">Ngày 100 mình quen nhau ❤️</p>
+        <div class="letter-body" id="letterBody"></div>
+        <p class="letter-sign">— Của em dành cho chị 🤍</p>
+    </div>
+    <button class="back-btn" id="backBtn">← Quay lại</button>
+</div>
+
+<script>
+    /* ═══════════════════════════════════════════
+       TIMELINE PORTAL — INTRO SEQUENCE
+    ═══════════════════════════════════════════ */
+    (function () {
+        const canvas  = document.getElementById("portal-canvas");
+        const ctx     = canvas.getContext("2d");
+        const fadeOut = document.getElementById("portal-fadeout");
+
+        /* ── Particles ── */
+        let W, H, particles = [];
+
+        function resize() {
+            W = canvas.width  = canvas.offsetWidth;
+            H = canvas.height = canvas.offsetHeight;
+        }
+        resize();
+        window.addEventListener("resize", resize);
+
+        function spawnParticle(x, y, burst) {
+            const count = burst ? 6 : 1;
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = burst ? 2 + Math.random() * 5 : 0.3 + Math.random() * 1.2;
+                const hue   = burst
+                    ? [300, 330, 0, 180, 210][Math.floor(Math.random() * 5)]
+                    : Math.random() < 0.5 ? 180 : 300;
+                particles.push({
+                    x: x ?? Math.random() * W,
+                    y: y ?? Math.random() * H,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - (burst ? 2 : 0),
+                    size: burst ? 2 + Math.random() * 4 : 1 + Math.random() * 2,
+                    life: 1,
+                    decay: burst ? 0.018 + Math.random() * 0.02 : 0.005 + Math.random() * 0.006,
+                    hue,
+                    glow: burst
+                });
+            }
+        }
+
+        /* ambient particles */
+        let particleTimer = 0;
+        function drawParticles(dt) {
+            particleTimer += dt;
+            if (particleTimer > 60) {
+                spawnParticle(null, null, false);
+                particleTimer = 0;
+            }
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => {
+                p.x   += p.vx;
+                p.y   += p.vy;
+                p.vy  += 0.05;
+                p.life -= p.decay;
+
+                const a = Math.max(0, p.life);
+                ctx.save();
+                if (p.glow) {
+                    ctx.shadowBlur  = 10;
+                    ctx.shadowColor = `hsla(${p.hue},100%,70%,${a})`;
+                }
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${p.hue},100%,75%,${a})`;
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        function bigBurst() {
+            const cx = W / 2, cy = H / 2;
+            for (let i = 0; i < 120; i++) spawnParticle(cx, cy, true);
+        }
+
+        /* ── Typewriter ── */
+        const phrase = "Hệ thống đang quét tìm những ký ức đẹp nhất...";
+        const textEl = document.getElementById("typewriter-text");
+        let charIdx  = 0;
+
+        function typeNext() {
+            if (charIdx < phrase.length) {
+                textEl.textContent = phrase.slice(0, ++charIdx);
+                setTimeout(typeNext, 55);
+            } else {
+                // pause then show counter
+                setTimeout(startCounter, 700);
+            }
+        }
+
+        /* ── Counter ── */
+        const counterWrap = document.getElementById("counterWrap");
+        const counterEl   = document.getElementById("day-counter");
+        const TARGET      = 100;
+        let   count       = 0;
+        let   hasBurst    = false;
+
+        function startCounter() {
+            counterWrap.style.display = "flex";
+            requestAnimationFrame(tickCounter);
+        }
+
+        let lastTs = null;
+        function tickCounter(ts) {
+            if (!lastTs) lastTs = ts;
+            const dt = ts - lastTs;
+            lastTs = ts;
+
+            // speed: slow at start & end, fast in middle
+            const progress = count / TARGET;
+            const speed = progress < 0.1 ? 0.15 : progress > 0.88 ? 0.08 : 0.7;
+            count = Math.min(TARGET, count + speed * (dt / 16.67));
+
+            const display = Math.floor(count);
+            counterEl.textContent = display;
+
+            /* neon colour shift */
+            const hue = Math.floor(300 - progress * 120);
+            counterEl.style.textShadow = `
+                0 0 10px hsl(${hue},100%,70%),
+                0 0 30px hsl(${hue},100%,60%),
+                0 0 60px hsl(${hue},100%,50%),
+                0 0 100px hsl(${hue},100%,40%)`;
+
+            if (count >= TARGET && !hasBurst) {
+                hasBurst = true;
+                counterEl.textContent = "100";
+                bigBurst();
+                setTimeout(exitPortal, 1100);
+                return;
+            }
+
+            if (count < TARGET) requestAnimationFrame(tickCounter);
+        }
+
+        /* ── Main render loop ── */
+        let lastFrame = null;
+        function render(ts) {
+            if (!document.getElementById("portal-screen").classList.contains("active")) return;
+            if (!lastFrame) lastFrame = ts;
+            const dt = ts - lastFrame;
+            lastFrame = ts;
+
+            ctx.clearRect(0, 0, W, H);
+            drawParticles(dt);
+
+            if (!hasBurst || particles.some(p => p.life > 0)) {
+                requestAnimationFrame(render);
+            }
+        }
+
+        /* ── Exit → goes to dialogue now ── */
+        function exitPortal() {
+            fadeOut.classList.add("fade");
+            setTimeout(() => {
+                document.getElementById("portal-screen").classList.remove("active");
+                currentLine = 0;
+                showScreen("dialogue-screen");
+                showLine(0);
+                fadeOut.style.transition = "opacity 0.6s ease";
+                fadeOut.style.opacity    = "0";
+                setTimeout(() => { fadeOut.style.pointerEvents = "none"; }, 700);
+            }, 850);
+        }
+
+        /* ── Exposed start fn (called by YES button) ── */
+        window.startPortal = function () {
+            showScreen("portal-screen");
+            // reset state
+            charIdx = 0;
+            count   = 0;
+            hasBurst = false;
+            lastTs   = null;
+            particles = [];
+            textEl.textContent = "";
+            counterWrap.style.display = "none";
+            counterEl.textContent = "0";
+            resize();
+            requestAnimationFrame(render);
+            setTimeout(typeNext, 400);
+        };
+    })();
+
+    /* ═══════════════════════════════════════════
+       EXISTING LOGIC — unchanged below
+    ═══════════════════════════════════════════ */
+    const letters = [
+        {
+            label: "Thư số 1 💌",
+            title: "Thư số 1 — Định Mệnh",
+            body: `Chị còn nhớ ngày đầu mình gặp nhau không? Đối với em đó như là một giấc mơ vậy, từ hai con người xa lạ chúng ta vội vàng biến thành một phần trong ký ức của người kia. Một phần ký ức rất đẹp mà em sẽ luôn trân trọng.
+
+Thời gian trôi qua em nhận ra sự hiện diện của chị không chỉ là tình cờ, nó giống một sự sắp đặt của định mệnh. Cảm ơn chị đã xuất hiện trong cuộc đời em.`
+        },
+        {
+            label: "Thư số 2 🌸",
+            title: "Thư số 2 — Điều em thích nhất",
+            body: `Có thể là chị nghe mấy câu này sẽ hơi sến súa. Nhưng trên thế giới này có hơn 7 tỉ nụ cười mà với em nụ cười của chị là đẹp nhất. Chị cười rất hiền và có một chút bình yên, kiểu đang buồn mà nghe chị cười thì cũng thấy tâm trạng tốt hơn.
+
+Em luôn hi vọng mọi thứ tốt đẹp sẽ đến với chị để nụ cười đó không bao giờ phải tắt. Mỗi khi chị gặp áp lực hay mệt mỏi, hãy nhớ luôn có em ở đây giúp chị giữ lại nụ cười trên môi nhaa.`
+        },
+        {
+            label: "Thư số 3 ✨",
+            title: "Thư số 3 — Kỷ niệm đáng nhớ",
+            body: `Chị còn nhớ chiếc vòng tay mà chị làm cho em không? Thực sự hôm đó em siêu bất ngờ và rất vui, em không biết từ bao lâu rồi em mới nhận được một món quà như vậy. Em biết khi làm chiếc vòng đó chị đã gửi gắm rất nhiều mong muốn, mong em thi tốt, mong em may mắn — và em không làm chị thất vọng.
+
+Với em chiếc vòng đó rất đặc biệt, nó tiếp cho em sự tự tin khi bước vào các kì thi, nó như một sợi dây kết nối hai chúng ta, cho em cảm giác luôn có chị đồng hành cùng em. Em sẽ luôn trân trọng món quà này. (Nhắc nhẹ là e ko có đeo vừa nữa rồi nha chị 😅)`
+        },
+        {
+            label: "Thư số 4 💗",
+            title: "Thư số 4 — Những điều nhỏ bé",
+            body: `Không biết viết cho chị cái gì, em chỉ biết mình nhớ chị thôi mong lên trường sớm quá huhu.`
+        },
+        {
+            label: "Thư số 5 🌷",
+            title: "Thư số 5 — Em muốn nói",
+            body: `em thích chị thực sự rất thích chị không đúng phải là em yêu chị chứ`
+        },
+        {
+            label: "Thư số 6 🎀",
+            title: "Thư số 6 — 100 ngày qua",
+            body: `Trong khoảng thời gian vừa qua em học được từ chị rất nhiều, em rất thích một câu nói này trong những ngôi sao:
+                    Hãy nhìn vào những ngôi sao!
+                    Hãy nhìn ngắm vẻ đẹp của chúng
+                    Và trong vẻ đẹp đó hãy nhìn thấy chính bản thân mình.
+mới đầu em nghĩ:"ủa sao chị lại viết cho mình câu này nhỉ "Đó là câu hỏi đã khiến em suy nghĩ rất lâu mỗi khi ngước nhìn lên bầu trời.Đến bây giờ ý nghĩa của nó vẫn là một ẩn số với em nhưng ít nhất em biết chị nhắc em biết trân trọng bản thân và luôn cố gắng để trở thành phiên bản tốt hơn của chính mình. Vào năm sau chị sẽ phải chiến đấu với một kì thi rất khó khăn em mong chị cũng sẽ tỏa sáng như những ngôi sao 
+-ngôi sao mà em ngưỡng mộ nhất-`
+        },
+        {
+            label: "Thư số 7 🍀",
+            title: "Thư số 7 — Lời hứa của em",
+            body: `chị vẫn còn nhớ lời hứa giữa em với chị chứ, em vẫn luôn cố gắng thay đổi tích cựu để thực hiện lời hứa
+            ---đợi em nha---`
+        },
+        {
+            label: "Thư số 8 🌙",
+            title: "Thư số 8 — Những đêm khuya",
+            body: `Không liên quan lắm mà thôi cứ kể cho chị đi. Dạo này em rất hay bị mất ngủ, thường thì nằm không ngủ được em hãy suy nghĩ linh tinh mấy suy nghĩ của em nó lạ lắm kể cho người khác khéo người ta bảo hâm. 
+         có một câu hỏi đã luôn văng vẳng trong đầu em từ rất lâu rồi "mục đích mình đến với thế giới này là gì", trước thì em cũng nghĩ đơn giản thôi bố mẹ cho mình một cơ thể khỏe mạnh một đầu óc bình thường thì mình phải: học thật giỏi này sống một cuộc sống khiến bố mẹ không lo lắng gì,....
+         nhưng cuộc sống đâu như mình nghĩ vậy, càng lớn lên em càng hiểu được thêm nhiều thứ nhất là hai từ "trách nhiệm" chỉ hai chữ thôi nó khiến em tự đặt nặng mục tiêu hơn cho mình luôn tự nhủ phải cố gắng hơn, nhưng đến nữa năm lớp 10 em lại đánh rơi đi sự quyết tâm đó, chắc là em đang ngủ quên trên chiến thắng, không sao bây giờ đã có một người luôn bảo em học rồi=))
+         em thấy đôi khi mình suy nghĩ quá nhiều thứ không cần thiết chắc là do ảnh hưởng từ bé sau khi trải qua một cú sốc em thấy lòng người đúng là thứ... vì thế em luôn có thói quen suy nghĩ trước mọi thứ làm vậy khiến em cảm thấy an toàn, có một cái rất đặc biệt về em không biết đó là khả năng hay nhược điểm nữa:khi em suy nghĩ trước cái gì đó thì em làm chúng rất là hoàn hảo nhưng có một biến cố gì đó làm chệch đi quỹ đạo mà em suy nghĩ trước đó thì em rất khó để làm nó
+         lúc tiếp súc nhiều với chị em thấy đi cùng chị rất bình yên đi nói chuyện với cj em không cầm phải nghĩ ngợi gì nhiều nên nhiều lúc có nói linh tinh khiến chị không vui lắm
+         --em rất vui khi được nói chuyện cùng chị--`
+        },
+    ];
+
+    /* ── Helper: render body text as proper paragraphs ── */
+    function renderBody(text) {
+        return text
+            .split(/\n+/)
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map(line => `<p>${line}</p>`)
+            .join('');
+    }
+
+    const secretLetter = {
+        title: "💌 Phong thư bí mật",
+        body: `chào chị nếu chị đọc được những dòng chữ này thì em là hiếu của một phiên bản tốt hơn.
+        năm tháng học sinh gặp được chị là một điều rất may mắn với em cho đến tận bây giờ em vẫn luôn nhớ những ngày được trò chuyện với chị, được thấy chị cười ,...
+        vào năm lớp 10 đó em có một tia tình cảm với chị , thực sự thì em đã suy nghĩ rất nhiều về chuyện này tự hỏi chính bản thân có thực sự thích chị không hay chỉ là một dung động nhất thời, em biết khi xác định một mqh lâu dài thì nó sẽ rất khác lúc em với chị còn là chị em.
+        Em thấy con người vốn thích sự tự do nên khi bị chói buộc bằng một mqh thì hai người phải thật sự hiểu nhau, tất nhiên mỗi người đều có một khái niệm về tình yêu khác nhau, đối với em sau tất cả người ở lại cùng mình lúc khó khăn nhất cùng mình vượt qua chúng thì là người đáng để mình thân trọng.
+        đến đây thôi vào một ngày đẹp trời, em một phiên bản tốt nhất của bản thân sẽ nói những gì nên nói với chị...`
+    };
+
+    /* ── Dialogue lines ── */
+    const dialogueLines = [
+        "có thể là chị không nhớ hôm nay là ngày gì...",
+        "nhưng em vẫn thầm đếm từng ngày 🥺",
+        "và hôm nay là 100 ngày mình quen nhau đó 💫",
+        "Chị có thấy mấy ngôi sao băng kia không✨",
+        "Nếu các điều ước đều thành sự thật thì em ước sẽ luôn được đồng hành cùng chị",
+        "em có quà cho chị này 🎁"
+    ];
+
+    let currentLine = 0;
+
+    function renderProgress() {
+        // dots hidden, no-op
+    }
+
+    function showLine(index) {
+        const textEl = document.getElementById("dialogueText");
+        textEl.style.animation = "none";
+        textEl.offsetWidth;
+        textEl.style.animation = "fadeText 0.3s ease";
+        textEl.textContent = dialogueLines[index];
+
+        /* Trigger shooting star on emotional lines */
+        window.starryNight && window.starryNight.triggerShootForLine(index);
+
+        // Switch character image with smooth crossfade
+        const img = document.getElementById("characterImg");
+        const newSrc = index === 0
+            ? "cay.png"
+            : "ChatGPT_Image_Jun_26__2026__08_49_25_PM-removebg-preview.png";
+
+        if (img.src !== newSrc && !img.src.endsWith(newSrc)) {
+            img.classList.add("switching");
+            setTimeout(() => {
+                img.src = newSrc;
+                img.classList.remove("switching");
+            }, 300);
+        }
+    }
+
+    function nextLine() {
+        if (currentLine < dialogueLines.length - 1) {
+            currentLine++;
+            showLine(currentLine);
+        } else {
+            showScreen("success-screen");
+        }
+    }
+
+    document.getElementById("dialogueBox").addEventListener("click", () => {
+        nextLine();
+    });
+
+    /* ── Cake click → Constellation map ── */
+    document.querySelector(".cake-img").addEventListener("click", () => {
+        showScreen("constellation-screen");
+        window.initConstellation && window.initConstellation();
+    });
+
+    /* ── Secret envelope icon → open secret letter ── */
+    document.getElementById("secretEnvelopeIcon").addEventListener("click", () => {
+        document.getElementById("secret-overlay").classList.remove("show");
+        document.getElementById("letterTitle").textContent = secretLetter.title;
+        document.getElementById("letterBody").innerHTML  = renderBody(secretLetter.body);
+        showScreen("letter-screen");
+    });
+
+    /* ── Close overlay ── */
+    document.getElementById("closeOverlayBtn").addEventListener("click", () => {
+        document.getElementById("secret-overlay").classList.remove("show");
+    });
+    document.getElementById("secret-overlay").addEventListener("click", (e) => {
+        if (e.target === document.getElementById("secret-overlay")) {
+            document.getElementById("secret-overlay").classList.remove("show");
+        }
+    });
+
+    /* ── YES / NO logic ── */
+    const noMessages = [
+        "Chị không biết thật á?",
+        "Thật luôn??",
+        "Chị nghĩ kỹ lại xem nào!",
+        "Em buồn đó nha...",
+        "Thôi mà, bấm YES đi...",
+        "Chị cứ bấm NO là em khóc đó...",
+        "Năn nỉ chị luôn á...",
+        "Hazzzz..."
+    ];
+    let msgIdx = 0;
+    const noBtn  = document.getElementById("noBtn");
+    const yesBtn = document.getElementById("yesBtn");
+
+    noBtn.addEventListener("click", () => {
+        noBtn.textContent = noMessages[msgIdx];
+        msgIdx = (msgIdx + 1) % noMessages.length;
+        const fs  = parseFloat(window.getComputedStyle(yesBtn).fontSize);
+        const pad = parseFloat(window.getComputedStyle(yesBtn).paddingTop);
+        yesBtn.style.fontSize = (fs * 1.4) + "px";
+        yesBtn.style.padding  = `${pad * 1.4}px ${pad * 2.8}px`;
+    });
+
+    yesBtn.addEventListener("click", () => {
+        window.startPortal();
+    });
+
+    /* ── Gift box — Long Press mechanic ── */
+    (function () {
+        const giftBox    = document.getElementById("giftBox");
+        const giftGlow   = document.getElementById("giftGlow");
+        const heartFill  = document.getElementById("heart-fill");
+        const pressLabel = document.getElementById("press-label");
+        const giftHint   = document.getElementById("giftHint");
+
+        // Compute heart path total length once
+        const heartTrack = document.getElementById("heart-track");
+        let heartLen = 260; // fallback
+        try { heartLen = heartTrack.getTotalLength(); } catch(e) {}
+
+        const HOLD_MS = 2200; // 2.2s = 100 days metaphor
+        let holdTimer = null;
+        let startTime = null;
+        let rafId     = null;
+        let holding   = false;
+        let opened    = false;
+
+        // Sound "tách" via Web Audio
+        function playTach() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.connect(g); g.connect(ctx.destination);
+                o.type = "square";
+                o.frequency.setValueAtTime(420, ctx.currentTime);
+                o.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.12);
+                g.gain.setValueAtTime(0.3, ctx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+                o.start(); o.stop(ctx.currentTime + 0.2);
+            } catch(e) {}
+        }
+
+        function updateProgress(pct) {
+            // Heart stroke-dasharray: pct of total length
+            const drawn = heartLen * pct;
+            heartFill.setAttribute("stroke-dasharray", `${drawn} ${heartLen}`);
+
+            // Glow intensity
+            const glow = Math.round(pct * 40);
+            const bright = Math.round(pct * 60);
+            giftGlow.style.opacity = pct * 0.9;
+            giftGlow.style.boxShadow = `
+                0 0 ${glow}px ${Math.round(glow/2)}px rgba(255,180,60,${pct * 0.7}),
+                inset 0 0 ${bright}px rgba(255,220,80,${pct * 0.5})`;
+
+            // Pulse label
+            const dayApprox = Math.round(pct * 100);
+            pressLabel.textContent = pct > 0 ? `${dayApprox} / 100 ngày 💫` : "Nhấn giữ để mở... 💫";
+            pressLabel.style.opacity = pct > 0.02 ? "1" : "0";
+        }
+
+        function tick() {
+            if (!holding || opened) return;
+            const elapsed = Date.now() - startTime;
+            const pct = Math.min(1, elapsed / HOLD_MS);
+            updateProgress(pct);
+
+            // Shake intensity grows
+            if (pct > 0.15 && !giftBox.classList.contains("shaking")) {
+                giftBox.classList.add("shaking");
+            }
+
+            if (pct >= 1) {
+                triggerOpen();
+                return;
+            }
+            rafId = requestAnimationFrame(tick);
+        }
+
+        function triggerOpen() {
+            if (opened) return;
+            opened = true;
+            cancelAnimationFrame(rafId);
+            holding = false;
+
+            playTach();
+
+            // Burst animation
+            giftBox.classList.remove("shaking");
+            giftBox.classList.add("bursting");
+
+            updateProgress(1);
+
+            setTimeout(() => {
+                launchConfetti(() => {
+                    showScreen("cake-screen");
+                    spawnFallingLetters();
+                });
+            }, 400);
+        }
+
+        function startHold(e) {
+            if (opened) return;
+            e.preventDefault();
+            holding   = true;
+            startTime = Date.now();
+            rafId     = requestAnimationFrame(tick);
+        }
+
+        function endHold() {
+            if (!holding || opened) return;
+            holding = false;
+            cancelAnimationFrame(rafId);
+            // Spring back
+            giftBox.classList.remove("shaking");
+            const elapsed = Date.now() - startTime;
+            const pct = Math.min(1, elapsed / HOLD_MS);
+            // Animate reset
+            let cur = pct;
+            function resetAnim() {
+                cur = Math.max(0, cur - 0.04);
+                updateProgress(cur);
+                if (cur > 0) requestAnimationFrame(resetAnim);
+                else pressLabel.style.opacity = "0";
+            }
+            requestAnimationFrame(resetAnim);
+        }
+
+        // Mouse events
+        giftBox.addEventListener("mousedown",  startHold);
+        window .addEventListener("mouseup",    endHold);
+        // Touch events
+        giftBox.addEventListener("touchstart", startHold, { passive: false });
+        giftBox.addEventListener("touchend",   endHold);
+        giftBox.addEventListener("touchcancel",endHold);
+    })();
+
+    /* ── Back button → Cake ── */
+    document.getElementById("backBtn").addEventListener("click", () => {
+        showScreen("cake-screen");
+    });
+
+    /* ── Utility: show screen ── */
+    function showScreen(id) {
+        if (id !== "cake-screen") {
+            activeEnvelopes.forEach(el => {
+                if (el._raf) cancelAnimationFrame(el._raf);
+            });
+        } else if (document.getElementById("cake-screen").querySelectorAll(".falling-envelope").length > 0) {
+            activeEnvelopes.forEach(el => animateEnvelope(el, {}));
+        }
+        document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+        document.getElementById(id).classList.add("active");
+
+        /* Starry night: start when entering dialogue, stop otherwise */
+        if (id === "dialogue-screen") {
+            window.starryNight && window.starryNight.start();
+        } else {
+            window.starryNight && window.starryNight.stop();
+        }
+
+        /* Petal speed: ultra-slow on gift screen, normal elsewhere */
+        const isGift = id === "success-screen";
+        document.querySelectorAll(".petal").forEach(p => {
+            const base = parseFloat(p.dataset.baseDuration || p.style.animationDuration) || 7;
+            if (!p.dataset.baseDuration) p.dataset.baseDuration = base;
+            p.style.animationDuration = isGift ? (base * 7) + "s" : base + "s";
+        });
+        window._giftScreenActive = isGift;
+    }
+
+    /* ── Spawn 9 falling envelopes – JS-driven, random, avoid center ── */
+    const activeEnvelopes = [];
+
+    function randomLeftPct() {
+        if (Math.random() < 0.5) {
+            return 3 + Math.random() * 29;
+        } else {
+            return 68 + Math.random() * 28;
+        }
+    }
+
+    function animateEnvelope(el, letterData) {
+        const duration  = (5 + Math.random() * 5) * 1000;
+        const startTime = performance.now() - Math.random() * duration;
+        const rotDir    = Math.random() < 0.5 ? 1 : -1;
+        const swayAmp   = 8 + Math.random() * 12;
+        const startLeft = randomLeftPct();
+
+        el.style.left = startLeft + "%";
+
+        function step(now) {
+            if (!document.getElementById("cake-screen").classList.contains("active")) return;
+
+            const elapsed = (now - startTime) % duration;
+            const t = elapsed / duration;
+
+            const y = -80 + t * (window.innerHeight + 160);
+            const sway = Math.sin(t * Math.PI * 4) * swayAmp;
+
+            let opacity = 1;
+            if (t < 0.08) opacity = t / 0.08;
+            else if (t > 0.88) opacity = (1 - t) / 0.12;
+
+            const rot = Math.sin(t * Math.PI * 3) * 6 * rotDir;
+
+            el.style.transform = `translateY(${y}px) translateX(${sway}px) rotate(${rot}deg)`;
+            el.style.opacity   = opacity;
+
+            if (elapsed < 16) {
+                el.style.left = randomLeftPct() + "%";
+            }
+
+            el._raf = requestAnimationFrame(step);
+        }
+
+        el._raf = requestAnimationFrame(step);
+    }
+
+    function spawnFallingLetters() {
+        const layer = document.getElementById("envelope-layer");
+        layer.innerHTML = "";
+        activeEnvelopes.length = 0;
+
+        letters.forEach((letter, idx) => {
+            const el = document.createElement("div");
+            el.className = "falling-envelope";
+            el.innerHTML = `
+                <div class="env-icon">${idx === 4 ? "🔐" : "💌"}</div>
+                <div class="env-label">${letter.label}</div>
+            `;
+            el.addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (idx === 4) {
+                    // Thư số 5 — yêu cầu mật khẩu
+                    window._pendingLetter = letter;
+                    openPwModal();
+                } else {
+                    document.getElementById("letterTitle").textContent = letter.title;
+                    document.getElementById("letterBody").innerHTML  = renderBody(letter.body);
+                    showScreen("letter-screen");
+                }
+            });
+
+            layer.appendChild(el);
+            animateEnvelope(el, letter);
+            activeEnvelopes.push(el);
+        });
+    }
+
+    /* ── Ambient falling petals ── */
+    const petals = ["🌸", "💗", "✨", "🌷", "💖"];
+    function spawnPetal() {
+        const el = document.createElement("div");
+        el.className = "petal";
+        el.textContent = petals[Math.floor(Math.random() * petals.length)];
+        el.style.left = Math.random() * 100 + "vw";
+        const base = 4 + Math.random() * 5;
+        el.dataset.baseDuration = base;
+        const dur = window._giftScreenActive ? (base * 7) : base;
+        el.style.animationDuration = dur + "s";
+        el.style.animationDelay    = (Math.random() * 3) + "s";
+        el.style.fontSize = (0.8 + Math.random() * 0.8) + "rem";
+        el.style.opacity  = window._giftScreenActive ? (0.6 + Math.random() * 0.4) : (0.4 + Math.random() * 0.5);
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), window._giftScreenActive ? 70000 : 10000);
+    }
+    setInterval(spawnPetal, 900);
+/* ── Confetti engine ── */
+    function launchConfetti(onDone) {
+        const canvas = document.getElementById("confetti-canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+        canvas.style.display = "block";
+
+        const colors = ["#e87c90","#f9d6dc","#3ba55c","#ffd700","#c084fc","#38bdf8","#fb7185","#fff"];
+        const pieces = Array.from({length: 160}, () => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height - canvas.height,
+            w: 6 + Math.random() * 9,
+            h: 10 + Math.random() * 8,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            rot: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 0.18,
+            vx: (Math.random() - 0.5) * 3.5,
+            vy: 3.5 + Math.random() * 4,
+            opacity: 1,
+            shape: Math.random() < 0.4 ? "circle" : "rect"
+        }));
+
+        let start = null;
+        const DURATION = 2200;
+
+        function draw(ts) {
+            if (!start) start = ts;
+            const elapsed = ts - start;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            pieces.forEach(p => {
+                p.x  += p.vx;
+                p.y  += p.vy;
+                p.rot += p.rotSpeed;
+                if (elapsed > DURATION * 0.6) {
+                    p.opacity = Math.max(0, p.opacity - 0.018);
+                }
+                ctx.save();
+                ctx.globalAlpha = p.opacity;
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+                ctx.fillStyle = p.color;
+                if (p.shape === "circle") {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                }
+                ctx.restore();
+            });
+
+            if (elapsed < DURATION) {
+                requestAnimationFrame(draw);
+            } else {
+                canvas.style.display = "none";
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (onDone) onDone();
+            }
+        }
+
+        requestAnimationFrame(draw);
+    }
+
+
+    /* ═══════════════════════════════════════════
+       STARRY NIGHT ENGINE — Dialogue Screen
+    ═══════════════════════════════════════════ */
+    (function () {
+        const starCanvas  = document.getElementById("star-canvas");
+        const shootCanvas = document.getElementById("shoot-canvas");
+        const sc  = starCanvas.getContext("2d");
+        const shc = shootCanvas.getContext("2d");
+
+        let W = 0, H = 0, stars = [], running = false;
+
+        /* All dialogue lines trigger a shooting star */
+        const shootingStarLines = null; // null = always trigger
+
+        function resize() {
+            W = starCanvas.width  = shootCanvas.width  = starCanvas.offsetWidth;
+            H = starCanvas.height = shootCanvas.height = starCanvas.offsetHeight;
+        }
+
+        /* ── Generate static stars ── */
+        function generateStars() {
+            stars = [];
+            const count = Math.floor((W * H) / 3000) + 80;
+            for (let i = 0; i < count; i++) {
+                stars.push({
+                    x: Math.random() * W,
+                    y: Math.random() * H * 0.85, // keep top 85% of screen
+                    r: 0.4 + Math.random() * 1.6,
+                    twinkleSpeed: 0.6 + Math.random() * 1.8,
+                    twinkleOffset: Math.random() * Math.PI * 2,
+                    brightness: 0.5 + Math.random() * 0.5,
+                    hue: Math.random() < 0.3
+                        ? (Math.random() < 0.5 ? 200 : 270)  // tint some blue/purple
+                        : 0  // white (saturation 0)
+                });
+            }
+        }
+
+        /* ── Draw twinkling stars ── */
+        function drawStars(ts) {
+            sc.clearRect(0, 0, W, H);
+            const t = ts / 1000;
+            stars.forEach(s => {
+                const flicker = s.brightness * (0.55 + 0.45 * Math.sin(t * s.twinkleSpeed + s.twinkleOffset));
+                sc.save();
+                sc.globalAlpha = flicker;
+                const grad = sc.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 2.5);
+                const sat = s.hue === 0 ? "0%" : "80%";
+                const col = s.hue === 0 ? `hsl(0,0%,100%)` : `hsl(${s.hue},80%,88%)`;
+                grad.addColorStop(0,   col);
+                grad.addColorStop(0.4, col);
+                grad.addColorStop(1,   "transparent");
+                sc.beginPath();
+                sc.arc(s.x, s.y, s.r * 2.5, 0, Math.PI * 2);
+                sc.fillStyle = grad;
+                sc.fill();
+                sc.restore();
+            });
+        }
+
+        /* ── Shooting star state ── */
+        let shoot = null;
+
+        function fireShootingStar() {
+            // Start from top-left region, fly toward bottom-right
+            const startX = W * (0.05 + Math.random() * 0.35);
+            const startY = H * (0.05 + Math.random() * 0.25);
+            const angle  = Math.PI / 6 + Math.random() * Math.PI / 8; // ~30-52 deg
+            const length = W * (0.28 + Math.random() * 0.22);
+            const speed  = W * 0.006 + Math.random() * W * 0.004;
+            shoot = {
+                x: startX, y: startY,
+                dx: Math.cos(angle) * speed,
+                dy: Math.sin(angle) * speed,
+                trailLen: length,
+                alpha: 1,
+                done: false
+            };
+        }
+
+        /* ── Draw shooting star ── */
+        function drawShoot() {
+            if (!shoot) return;
+            shc.clearRect(0, 0, W, H);
+
+            // Move
+            shoot.x += shoot.dx;
+            shoot.y += shoot.dy;
+
+            // Tail start
+            const tx = shoot.x - Math.cos(Math.atan2(shoot.dy, shoot.dx)) * shoot.trailLen;
+            const ty = shoot.y - Math.sin(Math.atan2(shoot.dy, shoot.dx)) * shoot.trailLen;
+
+            const grad = shc.createLinearGradient(tx, ty, shoot.x, shoot.y);
+            grad.addColorStop(0,   "rgba(255,255,255,0)");
+            grad.addColorStop(0.6, `rgba(200,180,255,${shoot.alpha * 0.6})`);
+            grad.addColorStop(1,   `rgba(255,255,255,${shoot.alpha})`);
+
+            shc.save();
+            shc.strokeStyle = grad;
+            shc.lineWidth   = 2.5;
+            shc.shadowBlur  = 12;
+            shc.shadowColor = "rgba(200,180,255,0.9)";
+            shc.beginPath();
+            shc.moveTo(tx, ty);
+            shc.lineTo(shoot.x, shoot.y);
+            shc.stroke();
+            shc.restore();
+
+            // Fade out after crossing ~60% screen
+            if (shoot.x > W * 0.8 || shoot.y > H * 0.85) {
+                shoot.alpha -= 0.06;
+                if (shoot.alpha <= 0) {
+                    shoot = null;
+                    shc.clearRect(0, 0, W, H);
+                }
+            }
+        }
+
+        /* ── Main render loop ── */
+        function loop(ts) {
+            if (!running) return;
+            drawStars(ts);
+            drawShoot();
+            requestAnimationFrame(loop);
+        }
+
+        /* ── Public API ── */
+        window.starryNight = {
+            start() {
+                resize();
+                generateStars();
+                running = true;
+                requestAnimationFrame(loop);
+            },
+            stop() {
+                running = false;
+                sc.clearRect(0, 0, W, H);
+                shc.clearRect(0, 0, W, H);
+            },
+            triggerShootForLine(lineIndex) {
+                setTimeout(fireShootingStar, 400);
+            }
+        };
+
+        window.addEventListener("resize", () => {
+            if (!running) return;
+            resize();
+            generateStars();
+        });
+    })();
+
+    /* Hook starry night into dialogue screen transitions */
+    const _origShowScreen = typeof showScreen === "function" ? showScreen : null;
+
+    /* ═══════════════════════════════════════════════════
+       CONSTELLATION MAP ENGINE — Sử Nữ (Virgo)
+    ═══════════════════════════════════════════════════ */
+    (function () {
+        const screen      = document.getElementById("constellation-screen");
+        const canvas      = document.getElementById("constellation-canvas");
+        const ctx         = canvas.getContext("2d");
+        const hint        = document.getElementById("constellation-hint");
+        const titleEl     = document.getElementById("constellation-title");
+        const completeMsg = document.getElementById("constellation-complete-msg");
+
+        let W = 0, H = 0;
+        let bgStars = [];
+        let rafId   = null;
+        let completed = false;
+
+        /* ── Virgo constellation nodes (normalised 0–1 coords) ──
+           9 stars, tap in order 0 → 8                            */
+        const VIRGO_NODES = [
+            { nx: 0.25, ny: 0.18 },   // 0 — ε Vir  (Vindemiatrix)
+            { nx: 0.35, ny: 0.30 },   // 1
+            { nx: 0.45, ny: 0.38 },   // 2 — δ Vir
+            { nx: 0.50, ny: 0.28 },   // 3 — γ Vir  (Porrima)
+            { nx: 0.60, ny: 0.22 },   // 4
+            { nx: 0.65, ny: 0.42 },   // 5 — η Vir
+            { nx: 0.55, ny: 0.55 },   // 6 — α Vir  (Spica) ★
+            { nx: 0.40, ny: 0.62 },   // 7
+            { nx: 0.30, ny: 0.72 },   // 8 — ζ Vir  bottom
+        ];
+
+        /* Y-shape connection order typical of Virgo */
+        const EDGES = [[0,1],[1,2],[2,3],[3,4],[3,5],[5,6],[6,7],[7,8]];
+
+        let nextIdx    = 0;
+        let nodes      = [];
+        let drawnEdges = [];
+
+        function resize() {
+            W = canvas.width  = canvas.offsetWidth  || window.innerWidth;
+            H = canvas.height = canvas.offsetHeight || window.innerHeight;
+            rebuildNodes();
+        }
+
+        function rebuildNodes() {
+            nodes = VIRGO_NODES.map((n, i) => ({
+                x: n.nx * W,
+                y: n.ny * H,
+                r: i === 6 ? 14 : 9,
+                touched: false,
+                pulse: Math.random() * Math.PI * 2,
+                isBright: i === 6
+            }));
+        }
+
+        /* ── Background ambient stars ── */
+        function genBgStars() {
+            bgStars = Array.from({ length: 180 }, () => ({
+                x:  Math.random() * W,
+                y:  Math.random() * H,
+                r:  0.4 + Math.random() * 1.2,
+                a:  0.3 + Math.random() * 0.7,
+                sp: 0.5 + Math.random() * 2,
+                ph: Math.random() * Math.PI * 2
+            }));
+        }
+
+        /* ── Draw everything ── */
+        function draw(ts) {
+            ctx.clearRect(0, 0, W, H);
+            const t = ts / 1000;
+
+            // Background stars
+            bgStars.forEach(s => {
+                const flicker = s.a * (0.5 + 0.5 * Math.sin(t * s.sp + s.ph));
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255,255,255,${flicker})`;
+                ctx.fill();
+            });
+
+            // Draw lit edges
+            drawnEdges.forEach(ei => {
+                const [a, b] = EDGES[ei];
+                const na = nodes[a], nb = nodes[b];
+                const grad = ctx.createLinearGradient(na.x, na.y, nb.x, nb.y);
+                grad.addColorStop(0,   "rgba(200,160,255,0.9)");
+                grad.addColorStop(0.5, "rgba(255,200,255,0.7)");
+                grad.addColorStop(1,   "rgba(160,220,255,0.9)");
+                ctx.save();
+                ctx.strokeStyle = grad;
+                ctx.lineWidth   = completed ? 2.5 : 1.8;
+                ctx.shadowBlur  = completed ? 18 : 8;
+                ctx.shadowColor = "rgba(200,150,255,0.8)";
+                ctx.beginPath();
+                ctx.moveTo(na.x, na.y);
+                ctx.lineTo(nb.x, nb.y);
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // Draw star nodes
+            nodes.forEach((n, i) => {
+                const twinkle = 0.7 + 0.3 * Math.sin(t * 2 + n.pulse);
+                const r = n.r * twinkle;
+
+                if (n.touched) {
+                    ctx.save();
+                    ctx.shadowBlur  = completed ? 40 : 22;
+                    ctx.shadowColor = n.isBright ? "#ffddaa" : "#c084fc";
+                    const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2.5);
+                    grd.addColorStop(0,   n.isBright ? "#fff9e0" : "#f0d0ff");
+                    grd.addColorStop(0.4, n.isBright ? "#ffd97a" : "#c084fc");
+                    grd.addColorStop(1,   "rgba(0,0,0,0)");
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, r * 2.5, 0, Math.PI * 2);
+                    ctx.fillStyle = grd;
+                    ctx.fill();
+                    ctx.restore();
+                } else {
+                    ctx.save();
+                    ctx.globalAlpha = 0.55 + 0.25 * Math.sin(t * 3 + n.pulse);
+                    ctx.shadowBlur  = 6;
+                    ctx.shadowColor = i === nextIdx ? "#e0c0ff" : "#8866aa";
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                    ctx.fillStyle   = i === nextIdx ? "#d8b4fe" : "#9870cc";
+                    ctx.fill();
+                    ctx.restore();
+
+                    // Pulsing ring on next target
+                    if (i === nextIdx) {
+                        const pulse = Math.sin(t * 4) * 0.5 + 0.5;
+                        ctx.save();
+                        ctx.strokeStyle = `rgba(220,180,255,${0.5 * pulse})`;
+                        ctx.lineWidth   = 1.5;
+                        ctx.beginPath();
+                        ctx.arc(n.x, n.y, r + 8 + pulse * 6, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+
+                // Label
+                const labels = ["ε","δ₁","δ","γ","η","β","α★","ζ","ι"];
+                const clamp  = (mn, v, mx) => Math.min(mx, Math.max(mn, v));
+                ctx.save();
+                ctx.font      = `${i === 6 ? "bold " : ""}${clamp(10, W * 0.025, 13)}px serif`;
+                ctx.fillStyle = n.touched ? (n.isBright ? "#ffe099" : "#e0caff") : "rgba(180,160,200,0.7)";
+                ctx.shadowBlur  = n.touched ? 8 : 0;
+                ctx.shadowColor = "#c084fc";
+                ctx.fillText(labels[i] || "", n.x + r + 5, n.y - 4);
+                ctx.restore();
+            });
+
+            // "Spica" name label when lit
+            if (nodes[6] && nodes[6].touched) {
+                const clamp = (mn, v, mx) => Math.min(mx, Math.max(mn, v));
+                ctx.save();
+                ctx.font      = `italic ${clamp(10, W * 0.022, 12)}px serif`;
+                ctx.fillStyle = "rgba(255,225,160,0.9)";
+                ctx.fillText("Spica", nodes[6].x + 16, nodes[6].y + 4);
+                ctx.restore();
+            }
+
+            rafId = requestAnimationFrame(draw);
+        }
+
+        /* ── Sound effects ── */
+        function playStarSound(idx) {
+            try {
+                const ac = new (window.AudioContext || window.webkitAudioContext)();
+                const freqs = [523, 587, 659, 698, 784, 880, 988, 1047, 1175];
+                const o = ac.createOscillator(), g = ac.createGain();
+                o.connect(g); g.connect(ac.destination);
+                o.type = "sine";
+                o.frequency.value = freqs[idx % freqs.length];
+                g.gain.setValueAtTime(0.18, ac.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.5);
+                o.start(); o.stop(ac.currentTime + 0.55);
+            } catch(e) {}
+        }
+
+        function playCompleteSound() {
+            try {
+                const ac = new (window.AudioContext || window.webkitAudioContext)();
+                [[523,0],[659,0.1],[784,0.2],[1047,0.3],[1319,0.4]].forEach(([f,d]) => {
+                    const o = ac.createOscillator(), g = ac.createGain();
+                    o.connect(g); g.connect(ac.destination);
+                    o.type = "sine"; o.frequency.value = f;
+                    g.gain.setValueAtTime(0, ac.currentTime + d);
+                    g.gain.linearRampToValueAtTime(0.15, ac.currentTime + d + 0.05);
+                    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + d + 0.8);
+                    o.start(ac.currentTime + d); o.stop(ac.currentTime + d + 0.9);
+                });
+            } catch(e) {}
+        }
+
+        /* ── Hit-test ── */
+        function hitNode(px, py) {
+            for (let i = 0; i < nodes.length; i++) {
+                const n = nodes[i];
+                const dx = px - n.x, dy = py - n.y;
+                if (Math.sqrt(dx*dx + dy*dy) <= n.r + 22) return i;
+            }
+            return -1;
+        }
+
+        /* ── Tap / click handler ── */
+        function handleTap(px, py) {
+            if (completed) return;
+            const hit = hitNode(px, py);
+            if (hit !== nextIdx) {
+                hint.textContent = hit >= 0
+                    ? "Không phải sao này! Hãy chạm vào ngôi sao sáng nhất tiếp theo ✦"
+                    : "Chạm vào ngôi sao tiếp theo nhé ✦";
+                return;
+            }
+            nodes[hit].touched = true;
+            playStarSound(hit);
+
+            EDGES.forEach((e, ei) => {
+                if (!drawnEdges.includes(ei) && nodes[e[0]].touched && nodes[e[1]].touched) {
+                    drawnEdges.push(ei);
+                }
+            });
+
+            nextIdx++;
+            hint.textContent = nextIdx < nodes.length
+                ? `Tuyệt vời! Còn ${nodes.length - nextIdx} ngôi sao nữa... ✦`
+                : "";
+
+            if (nextIdx >= nodes.length) setTimeout(onComplete, 600);
+        }
+
+        canvas.addEventListener("click", e => {
+            const r = canvas.getBoundingClientRect();
+            handleTap(e.clientX - r.left, e.clientY - r.top);
+        });
+        canvas.addEventListener("touchend", e => {
+            e.preventDefault();
+            const touch = e.changedTouches[0];
+            const r = canvas.getBoundingClientRect();
+            handleTap(touch.clientX - r.left, touch.clientY - r.top);
+        }, { passive: false });
+
+        /* ── Completion ── */
+        function onComplete() {
+            completed = true;
+            hint.style.opacity  = "0";
+            titleEl.style.opacity = "1";
+            playCompleteSound();
+            setTimeout(() => { completeMsg.style.opacity = "1"; }, 900);
+        }
+
+        /* ── Public init ── */
+        window.initConstellation = function () {
+            cancelAnimationFrame(rafId);
+            completed  = false;
+            nextIdx    = 0;
+            drawnEdges = [];
+            hint.style.opacity      = "1";
+            titleEl.style.opacity   = "0";
+            completeMsg.style.opacity = "0";
+            hint.textContent = "✦ Chạm vào các ngôi sao theo thứ tự để nối chòm sao Sử Nữ ✦";
+            resize();
+            genBgStars();
+            rebuildNodes();
+            requestAnimationFrame(draw);
+        };
+
+        window.addEventListener("resize", () => {
+            if (!document.getElementById("constellation-screen").classList.contains("active")) return;
+            resize();
+            genBgStars();
+        });
+    })();
+
+    /* ── Constellation complete → open secret letter ── */
+    document.getElementById("openSecretLetterBtn").addEventListener("click", () => {
+        document.getElementById("letterTitle").textContent = secretLetter.title;
+        document.getElementById("letterBody").innerHTML    = renderBody(secretLetter.body);
+        showScreen("letter-screen");
+    });
+
+    /* ═══════════════════════════════════════════
+       PASSWORD MODAL ENGINE
+    ═══════════════════════════════════════════ */
+    (function () {
+        const CORRECT = "051809";
+        const modal   = document.getElementById("pw-modal");
+        const dots    = [0,1,2,3,4,5].map(i => document.getElementById("pd" + i));
+        const errMsg  = document.getElementById("pwErrorMsg");
+        let   entered = "";
+
+        function updateDots() {
+            dots.forEach((d, i) => {
+                d.classList.remove("filled", "error");
+                if (i < entered.length) d.classList.add("filled");
+            });
+        }
+
+        function shakeError(msg) {
+            dots.forEach(d => { d.classList.remove("filled"); d.classList.add("error"); });
+            errMsg.textContent = msg;
+            setTimeout(() => {
+                dots.forEach(d => d.classList.remove("error"));
+                entered = "";
+                updateDots();
+            }, 700);
+        }
+
+        function checkPassword() {
+            if (entered === CORRECT) {
+                // Đúng — mở thư
+                modal.classList.remove("show");
+                const letter = window._pendingLetter;
+                if (letter) {
+                    document.getElementById("letterTitle").textContent = letter.title;
+                    document.getElementById("letterBody").innerHTML    = renderBody(letter.body);
+                    showScreen("letter-screen");
+                }
+                entered = "";
+                updateDots();
+                errMsg.textContent = "";
+            } else {
+                shakeError("Mật khẩu không đúng rồi 🥺 Thử lại nhé!");
+            }
+        }
+
+        // Keypad buttons
+        document.querySelectorAll(".pw-key").forEach(btn => {
+            btn.addEventListener("click", () => {
+                if (entered.length >= 6) return;
+                entered += btn.dataset.d;
+                errMsg.textContent = "";
+                updateDots();
+                if (entered.length === 6) setTimeout(checkPassword, 180);
+            });
+        });
+
+        // Delete button
+        document.getElementById("pwDeleteBtn").addEventListener("click", () => {
+            entered = entered.slice(0, -1);
+            errMsg.textContent = "";
+            updateDots();
+        });
+
+        // Cancel
+        document.getElementById("pwCancelBtn").addEventListener("click", () => {
+            modal.classList.remove("show");
+            entered = "";
+            updateDots();
+            errMsg.textContent = "";
+        });
+
+        // Keyboard support
+        document.addEventListener("keydown", e => {
+            if (!modal.classList.contains("show")) return;
+            if (e.key >= "0" && e.key <= "9" && entered.length < 6) {
+                entered += e.key;
+                errMsg.textContent = "";
+                updateDots();
+                if (entered.length === 6) setTimeout(checkPassword, 180);
+            } else if (e.key === "Backspace") {
+                entered = entered.slice(0, -1);
+                updateDots();
+            } else if (e.key === "Escape") {
+                modal.classList.remove("show");
+                entered = "";
+                updateDots();
+                errMsg.textContent = "";
+            }
+        });
+
+        window.openPwModal = function () {
+            entered = "";
+            updateDots();
+            errMsg.textContent = "";
+            modal.classList.add("show");
+        };
+    })();
+
+</script>
+</body>
+</html>
